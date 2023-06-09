@@ -99,6 +99,7 @@ const threshold = 30; // Minimum distance threshold for swipe gesture
 
 let pickedSphearMesh: BABYLON.Nullable<BABYLON.AbstractMesh>;
 let isInit: boolean = false;
+const intialCord = { x: 0, y: 0 };
 
 const handleMouseDown = (event: MouseEvent, scene: BABYLON.Scene) => {
   // event.preventDefault();
@@ -108,6 +109,8 @@ const handleMouseDown = (event: MouseEvent, scene: BABYLON.Scene) => {
   startX = event.clientX;
   startY = event.clientY;
   pickedSphearMesh = scene.pick(scene.pointerX, scene.pointerY).pickedMesh;
+  intialCord.x = pickedSphearMesh?.position.x as number;
+  intialCord.y = pickedSphearMesh?.position.y as number;
   if (pickedSphearMesh)
     console.log({ pickedSphearMesh: pickedSphearMesh.position });
 };
@@ -116,52 +119,74 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
   // event.stopPropagation();
   // event.preventDefault();
 
-  endX = event.clientX;
-  endY = event.clientY;
+  if (pickedSphearMesh) {
+    pickedSphearMesh.position.x = intialCord.x;
+    pickedSphearMesh.position.y = intialCord.y;
+    isMouseDown = false;
+    return;
+  }
 
-  // console.log({ startX, startY, endX, endY });
+  // endX = event.clientX;
+  // endY = event.clientY;
 
-  const dropedSphearMesh = scene.pick(
-    scene.pointerX,
-    scene.pointerY
-  ).pickedMesh;
+  // // console.log({ startX, startY, endX, endY });
 
-  if (dropedSphearMesh)
-    console.log({ dropedSphearMesh: dropedSphearMesh.position });
+  // const dropedSphearMesh = scene.pick(
+  //   scene.pointerX,
+  //   scene.pointerY
+  // ).pickedMesh;
 
-  const deltaX = endX - startX;
-  const deltaY = endY - startY;
+  // if (dropedSphearMesh)
+  //   console.log({ dropedSphearMesh: dropedSphearMesh.position });
+
+  // const deltaX = endX - startX;
+  // const deltaY = endY - startY;
 
   // Determine the direction based on the deltaX and deltaY values
 
-  if (dropedSphearMesh !== null && pickedSphearMesh?.position) {
-    const tempPickedX = pickedSphearMesh.position.x,
-      tempPickedY = pickedSphearMesh.position.y;
+  // if (dropedSphearMesh !== null && pickedSphearMesh) {
+  //   const tempPickedX = pickedSphearMesh.position.x,
+  //     tempPickedY = pickedSphearMesh.position.y;
 
-    pickedSphearMesh.position.set(
-      dropedSphearMesh.position.x,
-      dropedSphearMesh.position.y,
-      0
-    );
+  //   pickedSphearMesh.position.set(
+  //     dropedSphearMesh.position.x,
+  //     dropedSphearMesh.position.y,
+  //     0
+  //   );
 
-    dropedSphearMesh.position.set(tempPickedX, tempPickedY, 0);
+  //   dropedSphearMesh.position.set(tempPickedX, tempPickedY, 0);
 
-    if (Math.abs(deltaX) > Math.abs(deltaY)) {
-      if (deltaX > 0) {
-        console.log("Swipe right");
-      } else {
-        console.log("Swipe left");
-      }
-    } else if (Math.abs(deltaY) > Math.abs(deltaX)) {
-      if (deltaY > 0) {
-        console.log("Swipe down");
-      } else {
-        console.log("Swipe up");
+  //   if (Math.abs(deltaX) > Math.abs(deltaY)) {
+  //     if (deltaX > 0) {
+  //       console.log("Swipe right");
+  //     } else {
+  //       console.log("Swipe left");
+  //     }
+  //   } else if (Math.abs(deltaY) > Math.abs(deltaX)) {
+  //     if (deltaY > 0) {
+  //       console.log("Swipe down");
+  //     } else {
+  //       console.log("Swipe up");
+  //     }
+  //   }
+  // }
+
+  isMouseDown = false;
+};
+
+const handleMouseMove = (event: MouseEvent, scene: BABYLON.Scene) => {
+  if (isMouseDown) {
+    // console.log(scene.pointerX, scene.pointerY);
+    const pickInfo = scene.pick(scene.pointerX, scene.pointerY);
+    if ((pickInfo.hit && pickedSphearMesh?.position, pickInfo.pickedPoint)) {
+      console.log(pickInfo.pickedPoint);
+
+      if (pickedSphearMesh) {
+        pickedSphearMesh.position.x = pickInfo.pickedPoint.x;
+        pickedSphearMesh.position.y = pickInfo.pickedPoint.y;
       }
     }
   }
-
-  isMouseDown = false;
 };
 
 function App() {
@@ -171,7 +196,6 @@ function App() {
     if (canvasRef.current && !isInit) {
       isInit = true;
 
-      console.log("use effect render");
       const engine = new BABYLON.Engine(canvasRef.current, true, {
         preserveDrawingBuffer: true,
         stencil: true,
@@ -192,6 +216,10 @@ function App() {
       canvasRef.current.addEventListener("pointerdown", (e) =>
         handleMouseDown(e, scene)
       );
+
+      canvasRef.current.addEventListener("pointermove", (e) => {
+        handleMouseMove(e, scene);
+      });
 
       canvasRef.current.addEventListener("pointerup", (e) =>
         handleMouseUp(e, scene)
