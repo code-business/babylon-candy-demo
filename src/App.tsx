@@ -90,37 +90,69 @@ const createScene = (engine: BABYLON.Engine, canvas: HTMLCanvasElement) => {
   return scene;
 };
 
-let startX: number, startY: number, endX: number, endY: number;
-const threshold = 50; // Minimum distance threshold for swipe gesture
+let startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  isMouseDown: boolean = false;
+const threshold = 30; // Minimum distance threshold for swipe gesture
 
-const handleMouseDown = (event: MouseEvent) => {
-  startX = event.pageX;
-  startY = event.pageY;
+let pickedSphearMesh: BABYLON.Nullable<BABYLON.AbstractMesh>;
+let isInit: boolean = false;
+
+const handleMouseDown = (event: MouseEvent, scene: BABYLON.Scene) => {
+  // event.preventDefault();
+  // event.stopPropagation();
+
+  isMouseDown = true;
+  startX = event.clientX;
+  startY = event.clientY;
+  pickedSphearMesh = scene.pick(scene.pointerX, scene.pointerY).pickedMesh;
+  if (pickedSphearMesh)
+    console.log({ pickedSphearMesh: pickedSphearMesh.position });
 };
 
 const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
+  // event.stopPropagation();
+  // event.preventDefault();
+
   endX = event.clientX;
   endY = event.clientY;
 
-  const pickResult = scene.pick(scene.pointerX, scene.pointerY);
+  // console.log({ startX, startY, endX, endY });
 
-  const pickedMesh = pickResult.pickedMesh;
+  const dropedSphearMesh = scene.pick(
+    scene.pointerX,
+    scene.pointerY
+  ).pickedMesh;
+
+  if (dropedSphearMesh)
+    console.log({ dropedSphearMesh: dropedSphearMesh.position });
 
   const deltaX = endX - startX;
   const deltaY = endY - startY;
 
   // Determine the direction based on the deltaX and deltaY values
-  if (pickedMesh !== null) {
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > threshold) {
+
+  if (dropedSphearMesh !== null && pickedSphearMesh?.position) {
+    const tempPickedX = pickedSphearMesh.position.x,
+      tempPickedY = pickedSphearMesh.position.y;
+
+    pickedSphearMesh.position.set(
+      dropedSphearMesh.position.x,
+      dropedSphearMesh.position.y,
+      0
+    );
+
+    dropedSphearMesh.position.set(tempPickedX, tempPickedY, 0);
+
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
       if (deltaX > 0) {
         console.log("Swipe right");
       } else {
         console.log("Swipe left");
       }
-    } else if (
-      Math.abs(deltaY) > Math.abs(deltaX) &&
-      Math.abs(deltaY) > threshold
-    ) {
+    } else if (Math.abs(deltaY) > Math.abs(deltaX)) {
       if (deltaY > 0) {
         console.log("Swipe down");
       } else {
@@ -128,13 +160,18 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
       }
     }
   }
+
+  isMouseDown = false;
 };
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (canvasRef.current) {
+    if (canvasRef.current && !isInit) {
+      isInit = true;
+
+      console.log("use effect render");
       const engine = new BABYLON.Engine(canvasRef.current, true, {
         preserveDrawingBuffer: true,
         stencil: true,
@@ -152,34 +189,13 @@ function App() {
         engine.resize();
       });
 
-      canvasRef.current.addEventListener("pointerdown", handleMouseDown);
-
-      canvasRef.current.addEventListener("mousemove", (e) => {
-        console.log(e);
-        console.log(scene.pointerX, scene.pointerY);
-      });
+      canvasRef.current.addEventListener("pointerdown", (e) =>
+        handleMouseDown(e, scene)
+      );
 
       canvasRef.current.addEventListener("pointerup", (e) =>
         handleMouseUp(e, scene)
       );
-
-      // canvasRef.current.addEventListener("dragstart", (e) => {
-      //   // console.log(e);
-      //   console.log(
-      //     "scene.pointerX, scene.pointerY",
-      //     scene.pointerX,
-      //     scene.pointerY
-      //   );
-      //   const pickResult = scene.pick(scene.pointerX, scene.pointerY);
-      //   // console.log(pickResult.pickedMesh);
-
-      //   console.log(pickResult.pickedMesh?.position.x);
-      //   console.log(pickResult.pickedMesh?.position.y);
-      // });
-
-      // canvasRef.current.addEventListener("", (e) => {
-      //   console.log("drag event ");
-      // });
     }
   }, []);
 
