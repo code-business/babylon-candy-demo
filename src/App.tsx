@@ -138,16 +138,74 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
         dropedSphearMesh.pickedPoint.y
       ) {
         console.log("bottom swipe");
+
+        const multipicked = scene.multiPick(scene.pointerX, scene.pointerY);
+        console.log(multipicked?.map((v) => v.pickedMesh?.position));
+
+        if (multipicked?.length === 2) {
+          if (multipicked[0].pickedMesh && multipicked[1].pickedMesh) {
+            if (
+              multipicked[0].pickedMesh.position.y <
+              multipicked[1].pickedMesh.position.y
+            ) {
+              multipicked[0].pickedMesh.position.y += 1;
+              multipicked[1].pickedMesh.position.y -= 1;
+            } else {
+              multipicked[1].pickedMesh.position.y += 1;
+              multipicked[0].pickedMesh.position.y -= 1;
+            }
+          }
+        }
+
       } else if (
         intialCord.x - thresholdPoint >=
         dropedSphearMesh.pickedPoint.x
       ) {
         console.log("left swipe");
+
+        const multipicked = scene.multiPick(scene.pointerX, scene.pointerY);
+        console.log(multipicked?.map((v) => v.pickedMesh?.position));
+
+        if (multipicked?.length === 2) {
+          if (multipicked[0].pickedMesh && multipicked[1].pickedMesh) {
+            if (
+              multipicked[0].pickedMesh.position.x >
+              multipicked[1].pickedMesh.position.x
+            ) {
+              multipicked[0].pickedMesh.position.x -= 1;
+              multipicked[1].pickedMesh.position.x += 1;
+            } else {
+              multipicked[1].pickedMesh.position.x -= 1;
+              multipicked[0].pickedMesh.position.x += 1;
+            }
+          }
+        }
+       
+
       } else if (
         intialCord.y + thresholdPoint <=
         dropedSphearMesh.pickedPoint.y
       ) {
         console.log("top swipe");
+
+        const multipicked = scene.multiPick(scene.pointerX, scene.pointerY);
+        console.log(multipicked?.map((v) => v.pickedMesh?.position));
+
+        if (multipicked?.length === 2) {
+          if (multipicked[0].pickedMesh && multipicked[1].pickedMesh) {
+            if (
+              multipicked[0].pickedMesh.position.y >
+              multipicked[1].pickedMesh.position.y
+            ) {
+              multipicked[0].pickedMesh.position.y -= 1;
+              multipicked[1].pickedMesh.position.y += 1;
+            } else {
+              multipicked[1].pickedMesh.position.y -= 1;
+              multipicked[0].pickedMesh.position.y += 1;
+            }
+          }
+        }
+        
       }
     }
     return;
