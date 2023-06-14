@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
-// import { Scene, Engine } from "babylonjs";
+
 import * as BABYLON from "babylonjs";
-// import logo from './logo.svg';
+
 import "./App.css";
 
 const rgbColors = [
@@ -71,18 +71,6 @@ const createScene = (engine: BABYLON.Engine, canvas: HTMLCanvasElement) => {
       );
 
       sphere.material = sphereMaterial;
-
-      // sphere.actionManager = new BABYLON.ActionManager(scene);
-
-      // const spherAction = new BABYLON.ExecuteCodeAction(
-      //   BABYLON.ActionManager.on,
-      //   () => {
-      //     // Action to perform when the sphere is clicked
-      //     console.log("Sphere clicked");
-      //   }
-      // );
-
-      // sphere.actionManager.registerAction(spherAction);
     }
   }
 
@@ -90,98 +78,93 @@ const createScene = (engine: BABYLON.Engine, canvas: HTMLCanvasElement) => {
   return scene;
 };
 
-let startX: number,
-  startY: number,
-  endX: number,
-  endY: number,
-  isMouseDown: boolean = false;
-const threshold = 30; // Minimum distance threshold for swipe gesture
+let isMouseDown: boolean = false;
+const thresholdPoint = 0.8;
 
 let pickedSphearMesh: BABYLON.Nullable<BABYLON.AbstractMesh>;
 let isInit: boolean = false;
-const intialCord = { x: 0, y: 0 };
+const intialCord = { x: 0, y: 0, pointerX: 0, pointerY: 0 };
 
 const handleMouseDown = (event: MouseEvent, scene: BABYLON.Scene) => {
-  // event.preventDefault();
-  // event.stopPropagation();
-
   isMouseDown = true;
-  startX = event.clientX;
-  startY = event.clientY;
+
+  console.log(scene.pointerX, scene.pointerY);
+
   pickedSphearMesh = scene.pick(scene.pointerX, scene.pointerY).pickedMesh;
   intialCord.x = pickedSphearMesh?.position.x as number;
   intialCord.y = pickedSphearMesh?.position.y as number;
-  if (pickedSphearMesh)
-    console.log({ pickedSphearMesh: pickedSphearMesh.position });
+  intialCord.pointerX = scene.pointerX;
+  intialCord.pointerY = scene.pointerY;
+
+  if (pickedSphearMesh) console.log(pickedSphearMesh);
 };
 
 const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
-  // event.stopPropagation();
-  // event.preventDefault();
-
   if (pickedSphearMesh) {
     pickedSphearMesh.position.x = intialCord.x;
     pickedSphearMesh.position.y = intialCord.y;
     isMouseDown = false;
+
+    const dropedSphearMesh = scene.pick(scene.pointerX, scene.pointerY);
+
+    if (
+      dropedSphearMesh &&
+      dropedSphearMesh.pickedPoint &&
+      pickedSphearMesh &&
+      pickedSphearMesh.position
+    ) {
+      if (intialCord.x + thresholdPoint <= dropedSphearMesh.pickedPoint.x) {
+        console.log("right swipe");
+
+        const multipicked = scene.multiPick(scene.pointerX, scene.pointerY);
+        console.log(multipicked?.map((v) => v.pickedMesh?.position));
+
+        if (multipicked?.length === 2) {
+          if (multipicked[0].pickedMesh && multipicked[1].pickedMesh) {
+            if (
+              multipicked[0].pickedMesh.position.x <
+              multipicked[1].pickedMesh.position.x
+            ) {
+              multipicked[0].pickedMesh.position.x += 1;
+              multipicked[1].pickedMesh.position.x -= 1;
+            } else {
+              multipicked[1].pickedMesh.position.x += 1;
+              multipicked[0].pickedMesh.position.x -= 1;
+            }
+          }
+        }
+      } else if (
+        intialCord.y - thresholdPoint >=
+        dropedSphearMesh.pickedPoint.y
+      ) {
+        console.log("bottom swipe");
+      } else if (
+        intialCord.x - thresholdPoint >=
+        dropedSphearMesh.pickedPoint.x
+      ) {
+        console.log("left swipe");
+      } else if (
+        intialCord.y + thresholdPoint <=
+        dropedSphearMesh.pickedPoint.y
+      ) {
+        console.log("top swipe");
+      }
+    }
     return;
   }
-
-  // endX = event.clientX;
-  // endY = event.clientY;
-
-  // // console.log({ startX, startY, endX, endY });
-
-  // const dropedSphearMesh = scene.pick(
-  //   scene.pointerX,
-  //   scene.pointerY
-  // ).pickedMesh;
-
-  // if (dropedSphearMesh)
-  //   console.log({ dropedSphearMesh: dropedSphearMesh.position });
-
-  // const deltaX = endX - startX;
-  // const deltaY = endY - startY;
-
-  // Determine the direction based on the deltaX and deltaY values
-
-  // if (dropedSphearMesh !== null && pickedSphearMesh) {
-  //   const tempPickedX = pickedSphearMesh.position.x,
-  //     tempPickedY = pickedSphearMesh.position.y;
-
-  //   pickedSphearMesh.position.set(
-  //     dropedSphearMesh.position.x,
-  //     dropedSphearMesh.position.y,
-  //     0
-  //   );
-
-  //   dropedSphearMesh.position.set(tempPickedX, tempPickedY, 0);
-
-  //   if (Math.abs(deltaX) > Math.abs(deltaY)) {
-  //     if (deltaX > 0) {
-  //       console.log("Swipe right");
-  //     } else {
-  //       console.log("Swipe left");
-  //     }
-  //   } else if (Math.abs(deltaY) > Math.abs(deltaX)) {
-  //     if (deltaY > 0) {
-  //       console.log("Swipe down");
-  //     } else {
-  //       console.log("Swipe up");
-  //     }
-  //   }
-  // }
 
   isMouseDown = false;
 };
 
 const handleMouseMove = (event: MouseEvent, scene: BABYLON.Scene) => {
   if (isMouseDown) {
-    // console.log(scene.pointerX, scene.pointerY);
     const pickInfo = scene.pick(scene.pointerX, scene.pointerY);
-    if ((pickInfo.hit && pickedSphearMesh?.position, pickInfo.pickedPoint)) {
-      console.log(pickInfo.pickedPoint);
-
-      if (pickedSphearMesh) {
+    if (pickInfo.hit && pickedSphearMesh?.position && pickInfo.pickedPoint) {
+      if (
+        pickedSphearMesh &&
+        Math.abs(pickInfo.pickedPoint.x - intialCord.x) <= 1 &&
+        Math.abs(pickInfo.pickedPoint.y - intialCord.y) <= 1
+      ) {
         pickedSphearMesh.position.x = pickInfo.pickedPoint.x;
         pickedSphearMesh.position.y = pickInfo.pickedPoint.y;
       }
