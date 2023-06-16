@@ -17,7 +17,153 @@ const rgbColors = [
 
 const calculatedRgb = rgbColors.map((rgbArr) => rgbArr.map((n) => n / 255));
 
-const createScene = (engine: BABYLON.Engine, canvas: HTMLCanvasElement) => {
+/**
+ * Delay for a number of milliseconds
+ */
+const sleep = (delay: number) => {
+  const start = new Date().getTime();
+  while (new Date().getTime() < start + delay);
+};
+
+const isMobileView = () => {
+  const userAgent = navigator.userAgent.toLowerCase();
+
+  const mobileKeywords = [
+    "android",
+    "webos",
+    "iphone",
+    "ipad",
+    "ipod",
+    "blackberry",
+    "windows phone",
+  ];
+
+  for (const keyword of mobileKeywords) {
+    if (userAgent.indexOf(keyword) !== -1) {
+      return true; // Mobile browser detected
+    }
+  }
+
+  return false; // Desktop browser detected
+};
+
+const getScreenSpaceCords = (
+  x: number,
+  y: number,
+  scene: BABYLON.Scene,
+  engine: BABYLON.Engine
+) => {
+  // Assuming you have a Babylon.js scene and a Vector3 position object
+  const position = new BABYLON.Vector3(x, y, 0); // Your Vector3 position
+
+  // Convert the world space position to screen space coordinates
+  if (scene.activeCamera) {
+    const screenCoordinates = BABYLON.Vector3.Project(
+      position,
+      BABYLON.Matrix.Identity(),
+      scene.getTransformMatrix(),
+      scene.activeCamera.viewport.toGlobal(
+        engine.getRenderWidth(),
+        engine.getRenderHeight()
+      )
+    );
+
+    return {
+      x: screenCoordinates.x,
+      y: screenCoordinates.y,
+    };
+  } else {
+    return { x: 0, y: 0 };
+  }
+};
+
+const checkMatch = (
+  position: "top" | "bottom" | "left" | "right" | "hor-between" | "ver-between",
+  currentMesh: BABYLON.AbstractMesh,
+  scene: BABYLON.Scene,
+  engine: BABYLON.Engine
+) => {
+  if (!currentMesh) {
+    return [];
+  }
+
+  const {
+    r: currentMeshRVal,
+    g: currentMeshGVal,
+    b: currentMeshBVal,
+  } = (currentMesh.material as BABYLON.StandardMaterial).diffuseColor;
+
+  switch (position) {
+    case "right":
+      /* search toward right for same rgb colors */
+      let refX = currentMesh.position.x + 1;
+      const matchedMashes = [currentMesh];
+
+      while (1) {
+        const neighbourMeshScreenCords = getScreenSpaceCords(
+          refX,
+          currentMesh.position.y,
+          scene,
+          engine
+        );
+        const neighbourMesh = scene.pick(
+          neighbourMeshScreenCords.x,
+          neighbourMeshScreenCords.y
+        ).pickedMesh;
+
+        /* if we not fount neighbour mesh then we will break the loop */
+        if (!neighbourMesh) {
+          break;
+        }
+
+        const {
+          r: neighbourMeshRVal,
+          g: neighbourMeshGVal,
+          b: neighbourMeshBVal,
+        } = (neighbourMesh.material as BABYLON.StandardMaterial).diffuseColor;
+
+        if (
+          currentMeshRVal !== neighbourMeshRVal &&
+          currentMeshGVal !== neighbourMeshGVal &&
+          currentMeshBVal !== neighbourMeshBVal
+        ) {
+          break;
+        }
+
+        /* this array of matched mashes will return from this function and leter it will used in burshting */
+        matchedMashes.push(neighbourMesh);
+
+        /* updating the x value for selecting next mesh */
+        refX += 1;
+      }
+
+      return matchedMashes;
+
+    case "left":
+      break;
+
+    case "top":
+      break;
+
+    case "bottom":
+      break;
+
+    case "hor-between":
+      break;
+
+    case "ver-between":
+      break;
+
+    default:
+      break;
+  }
+};
+
+const createScene = (
+  engine: BABYLON.Engine,
+  canvas: HTMLCanvasElement,
+  isMobile: boolean
+) => {
   // Create a basic BJS Scene object
   const scene = new BABYLON.Scene(engine);
   const camera = new BABYLON.ArcRotateCamera(
@@ -38,7 +184,11 @@ const createScene = (engine: BABYLON.Engine, canvas: HTMLCanvasElement) => {
   );
 
   // zoom out
-  camera.radius += 5;
+  if (isMobile) {
+    camera.radius += 15;
+  } else {
+    camera.radius += 5;
+  }
 
   // Create the grid of spheres
   const gridSize = 10; // Number of cells in each row/column
@@ -56,13 +206,13 @@ const createScene = (engine: BABYLON.Engine, canvas: HTMLCanvasElement) => {
       sphere.position.x = col * cellSize - (gridSize - 1) * cellSize * 0.5;
       sphere.position.y = row * cellSize - (gridSize - 1) * cellSize * 0.5;
 
-      if (row === 0 && col === 0) {
-        console.log(
-          "sphere.position.x, sphere.position.y",
-          sphere.position.x,
-          sphere.position.y
-        );
-      }
+      // if (row === 0 && col === 0) {
+      //   console.log(
+      //     "sphere.position.x, sphere.position.y",
+      //     sphere.position.x,
+      //     sphere.position.y
+      //   );
+      // }
 
       // setting sphere color
       const sphereMaterial = new BABYLON.StandardMaterial("material", scene);
@@ -79,7 +229,7 @@ const createScene = (engine: BABYLON.Engine, canvas: HTMLCanvasElement) => {
 };
 
 let isMouseDown: boolean = false;
-const thresholdPoint = 0.8;
+const thresholdPoint = 0.4;
 
 let pickedSphearMesh: BABYLON.Nullable<BABYLON.AbstractMesh>;
 let isInit: boolean = false;
@@ -88,7 +238,7 @@ const intialCord = { x: 0, y: 0, pointerX: 0, pointerY: 0 };
 const handleMouseDown = (event: MouseEvent, scene: BABYLON.Scene) => {
   isMouseDown = true;
 
-  console.log(scene.pointerX, scene.pointerY);
+  // console.log(scene.pointerX, scene.pointerY);
 
   pickedSphearMesh = scene.pick(scene.pointerX, scene.pointerY).pickedMesh;
   intialCord.x = pickedSphearMesh?.position.x as number;
@@ -96,16 +246,42 @@ const handleMouseDown = (event: MouseEvent, scene: BABYLON.Scene) => {
   intialCord.pointerX = scene.pointerX;
   intialCord.pointerY = scene.pointerY;
 
-  if (pickedSphearMesh) console.log(pickedSphearMesh);
+  // if (pickedSphearMesh) console.log(pickedSphearMesh);
+
+  const pickedPoint = scene.pick(scene.pointerX, scene.pointerY);
+
+  console.log("pickedPoint", pickedPoint);
 };
 
-const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
+const handleMouseUp = (
+  event: MouseEvent,
+  scene: BABYLON.Scene,
+  engine: BABYLON.Engine
+) => {
   if (pickedSphearMesh) {
     pickedSphearMesh.position.x = intialCord.x;
     pickedSphearMesh.position.y = intialCord.y;
     isMouseDown = false;
 
+    // const screenCords = getScreenSpaceCords(-3.5, 4.5, scene, engine);
+
+    // const pM = scene.pick(screenCords.x, screenCords.y).pickedMesh;
+    // console.log({ pM });
+
+    const matchedMeshes = checkMatch("right", pickedSphearMesh, scene, engine);
+
+    if (matchedMeshes) {
+      console.log({ matchedMeshes });
+    }
+
     const dropedSphearMesh = scene.pick(scene.pointerX, scene.pointerY);
+
+    // console.log(dropedSphearMesh.pickedMesh?.position);
+    // console.log(pickedSphearMesh.position);
+    // console.log(intialCord);
+
+    console.log("Droped mesh cords", dropedSphearMesh.pickedMesh?.position);
+    console.log("Picked mesh cords", pickedSphearMesh?.position);
 
     if (
       dropedSphearMesh &&
@@ -117,7 +293,6 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
         console.log("right swipe");
 
         const multipicked = scene.multiPick(scene.pointerX, scene.pointerY);
-        console.log(multipicked?.map((v) => v.pickedMesh?.position));
 
         if (multipicked?.length === 2) {
           if (multipicked[0].pickedMesh && multipicked[1].pickedMesh) {
@@ -140,7 +315,7 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
         console.log("bottom swipe");
 
         const multipicked = scene.multiPick(scene.pointerX, scene.pointerY);
-        console.log(multipicked?.map((v) => v.pickedMesh?.position));
+        // console.log(multipicked?.map((v) => v.pickedMesh?.position));
 
         if (multipicked?.length === 2) {
           if (multipicked[0].pickedMesh && multipicked[1].pickedMesh) {
@@ -156,7 +331,6 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
             }
           }
         }
-
       } else if (
         intialCord.x - thresholdPoint >=
         dropedSphearMesh.pickedPoint.x
@@ -164,7 +338,7 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
         console.log("left swipe");
 
         const multipicked = scene.multiPick(scene.pointerX, scene.pointerY);
-        console.log(multipicked?.map((v) => v.pickedMesh?.position));
+        // console.log(multipicked?.map((v) => v.pickedMesh?.position));
 
         if (multipicked?.length === 2) {
           if (multipicked[0].pickedMesh && multipicked[1].pickedMesh) {
@@ -180,8 +354,6 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
             }
           }
         }
-       
-
       } else if (
         intialCord.y + thresholdPoint <=
         dropedSphearMesh.pickedPoint.y
@@ -189,7 +361,7 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
         console.log("top swipe");
 
         const multipicked = scene.multiPick(scene.pointerX, scene.pointerY);
-        console.log(multipicked?.map((v) => v.pickedMesh?.position));
+        // console.log(multipicked?.map((v) => v.pickedMesh?.position));
 
         if (multipicked?.length === 2) {
           if (multipicked[0].pickedMesh && multipicked[1].pickedMesh) {
@@ -205,13 +377,10 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
             }
           }
         }
-        
       }
     }
     return;
   }
-
-  isMouseDown = false;
 };
 
 const handleMouseMove = (event: MouseEvent, scene: BABYLON.Scene) => {
@@ -242,7 +411,7 @@ function App() {
         stencil: true,
       });
 
-      const scene = createScene(engine, canvasRef.current);
+      const scene = createScene(engine, canvasRef.current, isMobileView());
 
       // run the render loop
       engine.runRenderLoop(() => {
@@ -263,7 +432,7 @@ function App() {
       });
 
       canvasRef.current.addEventListener("pointerup", (e) =>
-        handleMouseUp(e, scene)
+        handleMouseUp(e, scene, engine)
       );
     }
   }, []);
@@ -271,7 +440,7 @@ function App() {
   return (
     <div className="App">
       {/* <div>Babylon js</div> */}
-      <canvas style={{ width: "100%" }} ref={canvasRef} />
+      <canvas style={{ width: "100%", height: "100vh" }} ref={canvasRef} />
     </div>
   );
 }
