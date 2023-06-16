@@ -56,13 +56,13 @@ const createScene = (engine: BABYLON.Engine, canvas: HTMLCanvasElement) => {
       sphere.position.x = col * cellSize - (gridSize - 1) * cellSize * 0.5;
       sphere.position.y = row * cellSize - (gridSize - 1) * cellSize * 0.5;
 
-      if (row === 0 && col === 0) {
-        console.log(
-          "sphere.position.x, sphere.position.y",
-          sphere.position.x,
-          sphere.position.y
-        );
-      }
+      // if (row === 0 && col === 0) {
+      //   console.log(
+      //     "sphere.position.x, sphere.position.y",
+      //     sphere.position.x,
+      //     sphere.position.y
+      //   );
+      // }
 
       // setting sphere color
       const sphereMaterial = new BABYLON.StandardMaterial("material", scene);
@@ -78,8 +78,123 @@ const createScene = (engine: BABYLON.Engine, canvas: HTMLCanvasElement) => {
   return scene;
 };
 
+const getScreenSpaceCords = (
+  x: number,
+  y: number,
+  scene: BABYLON.Scene,
+  engine: BABYLON.Engine
+) => {
+  // Assuming you have a Babylon.js scene and a Vector3 position object
+  const position = new BABYLON.Vector3(x, y, 0); // Your Vector3 position
+
+  // Convert the world space position to screen space coordinates
+  if (scene.activeCamera) {
+    const screenCoordinates = BABYLON.Vector3.Project(
+      position,
+      BABYLON.Matrix.Identity(),
+      scene.getTransformMatrix(),
+      scene.activeCamera.viewport.toGlobal(
+        engine.getRenderWidth(),
+        engine.getRenderHeight()
+      )
+    );
+
+    return {
+      x: screenCoordinates.x,
+      y: screenCoordinates.y,
+    };
+  } else {
+    return { x: 0, y: 0 };
+  }
+};
+
+const checkMatchIn = (
+  direction: "left" | "right" | "top" | "bottom",
+  currentMesh: BABYLON.AbstractMesh,
+  scene: BABYLON.Scene,
+  engine: BABYLON.Engine
+) => {
+  const currentMeshCoror = (currentMesh.material as BABYLON.StandardMaterial)
+    .diffuseColor;
+
+  const matchedMashes = [currentMesh];
+  const meshIds = [currentMesh.id];
+
+  let refX: number = currentMesh.position.x,
+    refY = currentMesh.position.y;
+
+  if (direction === "left") {
+    refX = currentMesh.position.x - 1;
+  } else if (direction === "right") {
+    refX = currentMesh.position.x + 1;
+  } else if (direction === "top") {
+    refY = currentMesh.position.y + 1;
+  } else if (direction === "bottom") {
+    refY = currentMesh.position.y - 1;
+  }
+
+  while (1) {
+    const cords = getScreenSpaceCords(refX, refY, scene, engine);
+
+    const neighbourMesh = scene.pick(cords.x, cords.y).pickedMesh;
+
+    if (!neighbourMesh) {
+      break;
+    }
+
+    const neighbourMeshColor = (
+      neighbourMesh.material as BABYLON.StandardMaterial
+    ).diffuseColor;
+
+    if (
+      currentMeshCoror.r !== neighbourMeshColor.r &&
+      currentMeshCoror.g !== neighbourMeshColor.b &&
+      currentMeshCoror.b !== neighbourMeshColor.b
+    ) {
+      break;
+    }
+
+    if (!meshIds.includes(neighbourMesh.id)) {
+      matchedMashes.push(neighbourMesh);
+    } else {
+      break;
+    }
+
+    if (direction === "left") {
+      refX -= 1;
+    } else if (direction === "right") {
+      refX += 1;
+    } else if (direction === "top") {
+      refY += 1;
+    } else if (direction === "bottom") {
+      refY -= 1;
+    }
+  }
+
+  return matchedMashes;
+};
+
+const reArrangeY = (
+  cords: { x: number; y: number }[],
+  scene: BABYLON.Scene,
+  engine: BABYLON.Engine
+) => {
+  if (!cords.length) return;
+  let maxY = cords[0].y + 1;
+
+  while (maxY <= 4.5) {
+    const meshPosition = getScreenSpaceCords(cords[0].x, maxY, scene, engine);
+    const pickedMesh = scene.pick(meshPosition.x, meshPosition.y).pickedMesh;
+
+    if (pickedMesh) {
+      pickedMesh.position.y -= cords.length;
+    }
+    maxY += 1;
+  }
+};
+
 let isMouseDown: boolean = false;
-const thresholdPoint = 0.8;
+const thresholdPoint = 0.4;
 
 let pickedSphearMesh: BABYLON.Nullable<BABYLON.AbstractMesh>;
 let isInit: boolean = false;
@@ -88,24 +203,29 @@ const intialCord = { x: 0, y: 0, pointerX: 0, pointerY: 0 };
 const handleMouseDown = (event: MouseEvent, scene: BABYLON.Scene) => {
   isMouseDown = true;
 
-  console.log(scene.pointerX, scene.pointerY);
-
   pickedSphearMesh = scene.pick(scene.pointerX, scene.pointerY).pickedMesh;
+
   intialCord.x = pickedSphearMesh?.position.x as number;
   intialCord.y = pickedSphearMesh?.position.y as number;
+
   intialCord.pointerX = scene.pointerX;
   intialCord.pointerY = scene.pointerY;
-
-  if (pickedSphearMesh) console.log(pickedSphearMesh);
 };
 
-const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
+const handleMouseUp = (
+  event: MouseEvent,
+  scene: BABYLON.Scene,
+  engine: BABYLON.Engine
+) => {
   if (pickedSphearMesh) {
     pickedSphearMesh.position.x = intialCord.x;
     pickedSphearMesh.position.y = intialCord.y;
     isMouseDown = false;
 
     const dropedSphearMesh = scene.pick(scene.pointerX, scene.pointerY);
+
+    let mesh1: BABYLON.Nullable<BABYLON.AbstractMesh> = null,
+      mesh2: BABYLON.Nullable<BABYLON.AbstractMesh> = null;
 
     if (
       dropedSphearMesh &&
@@ -117,19 +237,24 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
         console.log("right swipe");
 
         const multipicked = scene.multiPick(scene.pointerX, scene.pointerY);
-        console.log(multipicked?.map((v) => v.pickedMesh?.position));
+        // console.log(multipicked?.map((v) => v.pickedMesh?.position));
 
         if (multipicked?.length === 2) {
           if (multipicked[0].pickedMesh && multipicked[1].pickedMesh) {
-            if (
+            const idx1: number =
               multipicked[0].pickedMesh.position.x <
               multipicked[1].pickedMesh.position.x
-            ) {
-              multipicked[0].pickedMesh.position.x += 1;
-              multipicked[1].pickedMesh.position.x -= 1;
-            } else {
-              multipicked[1].pickedMesh.position.x += 1;
-              multipicked[0].pickedMesh.position.x -= 1;
+                ? 0
+                : 1;
+
+            const idx2: number = idx1 === 1 ? 0 : 1;
+
+            mesh1 = multipicked[idx1].pickedMesh;
+            mesh2 = multipicked[idx2].pickedMesh;
+
+            if (mesh1 && mesh2) {
+              mesh1.position.x += 1;
+              mesh2.position.x -= 1;
             }
           }
         }
@@ -140,23 +265,27 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
         console.log("bottom swipe");
 
         const multipicked = scene.multiPick(scene.pointerX, scene.pointerY);
-        console.log(multipicked?.map((v) => v.pickedMesh?.position));
+        // console.log(multipicked?.map((v) => v.pickedMesh?.position));
 
         if (multipicked?.length === 2) {
           if (multipicked[0].pickedMesh && multipicked[1].pickedMesh) {
-            if (
+            const idx1: number =
               multipicked[0].pickedMesh.position.y <
               multipicked[1].pickedMesh.position.y
-            ) {
-              multipicked[0].pickedMesh.position.y += 1;
-              multipicked[1].pickedMesh.position.y -= 1;
-            } else {
-              multipicked[1].pickedMesh.position.y += 1;
-              multipicked[0].pickedMesh.position.y -= 1;
+                ? 0
+                : 1;
+
+            const idx2: number = idx1 === 1 ? 0 : 1;
+
+            mesh1 = multipicked[idx1].pickedMesh;
+            mesh2 = multipicked[idx2].pickedMesh;
+
+            if (mesh1 && mesh2) {
+              mesh1.position.y += 1;
+              mesh2.position.y -= 1;
             }
           }
         }
-
       } else if (
         intialCord.x - thresholdPoint >=
         dropedSphearMesh.pickedPoint.x
@@ -164,24 +293,27 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
         console.log("left swipe");
 
         const multipicked = scene.multiPick(scene.pointerX, scene.pointerY);
-        console.log(multipicked?.map((v) => v.pickedMesh?.position));
+        // console.log(multipicked?.map((v) => v.pickedMesh?.position));
 
         if (multipicked?.length === 2) {
           if (multipicked[0].pickedMesh && multipicked[1].pickedMesh) {
-            if (
+            const idx1: number =
               multipicked[0].pickedMesh.position.x >
               multipicked[1].pickedMesh.position.x
-            ) {
-              multipicked[0].pickedMesh.position.x -= 1;
-              multipicked[1].pickedMesh.position.x += 1;
-            } else {
-              multipicked[1].pickedMesh.position.x -= 1;
-              multipicked[0].pickedMesh.position.x += 1;
+                ? 0
+                : 1;
+
+            const idx2 = idx1 === 1 ? 0 : 1;
+
+            mesh1 = multipicked[idx1].pickedMesh;
+            mesh2 = multipicked[idx2].pickedMesh;
+
+            if (mesh1 && mesh2) {
+              mesh1.position.x -= 1;
+              mesh2.position.x += 1;
             }
           }
         }
-       
-
       } else if (
         intialCord.y + thresholdPoint <=
         dropedSphearMesh.pickedPoint.y
@@ -189,24 +321,136 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
         console.log("top swipe");
 
         const multipicked = scene.multiPick(scene.pointerX, scene.pointerY);
-        console.log(multipicked?.map((v) => v.pickedMesh?.position));
+        // console.log(multipicked?.map((v) => v.pickedMesh?.position));
 
         if (multipicked?.length === 2) {
           if (multipicked[0].pickedMesh && multipicked[1].pickedMesh) {
-            if (
+            const idx1: number =
               multipicked[0].pickedMesh.position.y >
               multipicked[1].pickedMesh.position.y
-            ) {
-              multipicked[0].pickedMesh.position.y -= 1;
-              multipicked[1].pickedMesh.position.y += 1;
-            } else {
-              multipicked[1].pickedMesh.position.y -= 1;
-              multipicked[0].pickedMesh.position.y += 1;
+                ? 0
+                : 1;
+
+            const idx2 = idx1 === 1 ? 0 : 1;
+
+            mesh1 = multipicked[idx1].pickedMesh;
+            mesh2 = multipicked[idx2].pickedMesh;
+
+            if (mesh1 && mesh2) {
+              mesh1.position.y -= 1;
+              mesh2.position.y += 1;
             }
           }
         }
-        
       }
+    }
+
+    if (mesh1 && mesh2) {
+      // /* find match */
+      // const rightMatches = checkMatchIn("right", mesh1, scene, engine);
+
+      // const leftMatches = checkMatchIn("left", mesh2, scene, engine);
+
+      // const rightBottomMatches = checkMatchIn("bottom", mesh1, scene, engine);
+
+      // const leftBottomMatches = checkMatchIn("bottom", mesh2, scene, engine);
+
+      // const rightTopMatches = checkMatchIn("top", mesh1, scene, engine);
+
+      // const leftTopMatches = checkMatchIn("top", mesh2, scene, engine);
+
+      const mesh1LeftMatches = checkMatchIn(
+        "left",
+        mesh1,
+        scene,
+        engine
+      ).filter((mesh) => mesh.id !== (mesh1 as BABYLON.AbstractMesh).id);
+      const mesh2LeftMatches = checkMatchIn(
+        "left",
+        mesh2,
+        scene,
+        engine
+      ).filter((mesh) => mesh.id !== (mesh2 as BABYLON.AbstractMesh).id);
+
+      const mesh1RightMatches = checkMatchIn("right", mesh1, scene, engine);
+      const mesh2RightMatches = checkMatchIn("right", mesh2, scene, engine);
+
+      const mesh1TopMatches = checkMatchIn("top", mesh1, scene, engine).filter(
+        (mesh) => mesh.id !== (mesh1 as BABYLON.AbstractMesh).id
+      );
+      const mesh2TopMatches = checkMatchIn("top", mesh2, scene, engine).filter(
+        (mesh) => mesh.id !== (mesh2 as BABYLON.AbstractMesh).id
+      );
+
+      const mesh1BottomMatches = checkMatchIn("bottom", mesh1, scene, engine);
+      const mesh2BottomMatches = checkMatchIn("bottom", mesh2, scene, engine);
+
+      const emptyCordsX: { x: number; y: number }[] = [];
+      const emptyCordsY: { x: number; y: number }[] = [];
+
+      if ([...mesh1BottomMatches, ...mesh1TopMatches].length >= 3) {
+        for (const currentMesh of [...mesh1BottomMatches, ...mesh1TopMatches]) {
+          emptyCordsY.push({
+            x: currentMesh.position.x,
+            y: currentMesh.position.y,
+          });
+          currentMesh.dispose();
+        }
+      }
+
+      if ([...mesh2BottomMatches, ...mesh2TopMatches].length >= 3) {
+        for (const currentMesh of [...mesh2BottomMatches, ...mesh2TopMatches]) {
+          emptyCordsY.push({
+            x: currentMesh.position.x,
+            y: currentMesh.position.y,
+          });
+          currentMesh.dispose();
+        }
+      }
+
+      if ([...mesh1LeftMatches, ...mesh1RightMatches].length >= 3) {
+        for (const currentMesh of [...mesh1LeftMatches, ...mesh1RightMatches]) {
+          emptyCordsX.push({
+            x: currentMesh.position.x,
+            y: currentMesh.position.y,
+          });
+          currentMesh.dispose();
+        }
+      }
+
+      if ([...mesh2LeftMatches, ...mesh2RightMatches].length >= 3) {
+        for (const currentMesh of [...mesh2LeftMatches, ...mesh2RightMatches]) {
+          emptyCordsX.push({
+            x: currentMesh.position.x,
+            y: currentMesh.position.y,
+          });
+          currentMesh.dispose();
+        }
+      }
+
+      console.log(emptyCordsY);
+
+      reArrangeY(emptyCordsY, scene, engine);
+
+      // for (const currentMesh of [
+      //   ...mesh2VerticalMatches,
+      //   ...mesh2BottomMatches,
+      // ])
+      //   currentMesh.dispose();
+
+      // console.log({
+      //   mesh1LeftMatches,
+      //   mesh1RightMatches,
+      //   mesh2LeftMatches,
+      //   mesh2RightMatches,
+      // });
+
+      // console.log({
+      //   mesh1TopMatches,
+      //   mesh2TopMatches,
+      //   mesh1BottomMatches,
+      //   mesh2BottomMatches,
+      // });
     }
     return;
   }
@@ -223,8 +467,19 @@ const handleMouseMove = (event: MouseEvent, scene: BABYLON.Scene) => {
         Math.abs(pickInfo.pickedPoint.x - intialCord.x) <= 1 &&
         Math.abs(pickInfo.pickedPoint.y - intialCord.y) <= 1
       ) {
-        pickedSphearMesh.position.x = pickInfo.pickedPoint.x;
-        pickedSphearMesh.position.y = pickInfo.pickedPoint.y;
+        if (
+          Math.abs(pickInfo.pickedPoint.x - intialCord.x) >
+          Math.abs(pickInfo.pickedPoint.y - intialCord.y)
+        ) {
+          pickedSphearMesh.position.x = pickInfo.pickedPoint.x;
+          pickedSphearMesh.position.y = intialCord.y; // Locks the movement on the y-direction
+        } else if (
+          Math.abs(pickInfo.pickedPoint.x - intialCord.x) <
+          Math.abs(pickInfo.pickedPoint.y - intialCord.y)
+        ) {
+          pickedSphearMesh.position.y = pickInfo.pickedPoint.y;
+          pickedSphearMesh.position.x = intialCord.x; // Locks the movement on the x-direction
+        }
       }
     }
   }
@@ -263,7 +518,7 @@ function App() {
       });
 
       canvasRef.current.addEventListener("pointerup", (e) =>
-        handleMouseUp(e, scene)
+        handleMouseUp(e, scene, engine)
       );
     }
   }, []);
