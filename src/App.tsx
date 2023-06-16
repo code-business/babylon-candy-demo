@@ -99,13 +99,196 @@ const handleMouseDown = (event: MouseEvent, scene: BABYLON.Scene) => {
   if (pickedSphearMesh) console.log(pickedSphearMesh);
 };
 
-const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
+const getPosition = (
+  x: number,
+  y: number,
+  scene: BABYLON.Scene,
+  engine: BABYLON.Engine
+) => {
+  const position = new BABYLON.Vector3(x, y, 0); // Your Vector3 position
+
+  // Convert the world space position to screen space coordinates
+  if (scene.activeCamera) {
+    const screenCoordinates = BABYLON.Vector3.Project(
+      position,
+      BABYLON.Matrix.Identity(),
+      scene.getTransformMatrix(),
+      scene.activeCamera.viewport.toGlobal(
+        engine.getRenderWidth(),
+        engine.getRenderHeight()
+      )
+    );
+
+    return {
+      x: screenCoordinates.x,
+      y: screenCoordinates.y,
+    };
+  } else {
+    return { x: 0, y: 0 };
+  }
+};
+
+const countAdjacent = (
+  pickedSphere: BABYLON.AbstractMesh,
+  indexesX: Array<number>,
+  indexesY: Array<number>,
+  direction: string,
+  scene: BABYLON.Scene,
+  engine: BABYLON.Engine
+) => {
+  const refMeshMaterialColor = (
+    pickedSphere.material as BABYLON.StandardMaterial
+  ).diffuseColor;
+
+  let startX = pickedSphere.position.x;
+  let startY = pickedSphere.position.y;
+  //const ids = [pickedSphere.id];
+
+   let tempX = startX,
+       tempY = startY
+
+  indexesX.push(startX);
+  indexesY.push(startY);
+
+  // finding adjacent same colored bubble on right side of the switched bubble
+
+  while (startX < 5 && direction!=="left") {
+    startX++;
+    const position = getPosition(startX, startY, scene, engine);
+    const pickedMesh = scene.pick(position.x, position.y).pickedMesh;
+
+    //console.log("position", pickedMesh?.position);
+
+    // if (pickedMesh) {
+    //   if (ids.includes(pickedMesh.id)) {
+    //     break;
+    //   } else {
+    //     ids.push(pickedMesh.id);
+    //   }
+
+      
+      if(pickedMesh){
+        const checkColor = (pickedMesh?.material as BABYLON.StandardMaterial)
+        .diffuseColor;
+        if (
+          refMeshMaterialColor.r === checkColor.r &&
+          refMeshMaterialColor.g === checkColor.g &&
+          refMeshMaterialColor.b === checkColor.b
+        ) {
+          //console.log(pickedMesh);
+          // console.log(pickedMesh?.position.x);
+          indexesX.push(startX);
+        } else {
+          break;
+        }
+      }
+      
+    }
+  
+
+      startX = tempX-1
+
+    //  finding adjacent same colored bubble on left side of the switched bubble
+
+      while(startX>-5 && direction!=="right"){
+        const position = getPosition(startX, startY , scene, engine)
+        const pickedMesh = scene.pick(position.x,position.y).pickedMesh
+
+        if(pickedMesh){
+          const checkColor = (
+            pickedMesh?.material as BABYLON.StandardMaterial
+          ).diffuseColor;
+
+          if(refMeshMaterialColor.r === checkColor.r && refMeshMaterialColor.g === checkColor.g && refMeshMaterialColor.b === checkColor.b){
+            //console.log(pickedMesh?.position.x)
+            indexesX.push(startX)
+          }
+          else{
+            break;
+          }
+        }
+        startX--
+      }
+
+      startX = tempX
+      startY--
+
+      while(startY>-5 && direction!=="top"){
+        const position = getPosition(startX, startY , scene, engine)
+        const pickedMesh = scene.pick(position.x,position.y).pickedMesh
+
+        if(pickedMesh){
+          const checkColor = (
+            pickedMesh?.material as BABYLON.StandardMaterial
+          ).diffuseColor;
+
+          if(refMeshMaterialColor.r === checkColor.r && refMeshMaterialColor.g === checkColor.g && refMeshMaterialColor.b === checkColor.b){
+            //console.log(pickedMesh?.position.x)
+            indexesY.push(startY)
+          }
+          else{
+            break;
+          }
+        }
+        startY--
+      }
+
+      startY = tempY+1
+
+      while(startY<5 && direction!=="bottom"){
+        const position = getPosition(startX, startY , scene, engine)
+        const pickedMesh = scene.pick(position.x,position.y).pickedMesh
+
+        if(pickedMesh){
+          const checkColor = (
+            pickedMesh?.material as BABYLON.StandardMaterial
+          ).diffuseColor;
+
+          if(refMeshMaterialColor.r === checkColor.r && refMeshMaterialColor.g === checkColor.g && refMeshMaterialColor.b === checkColor.b){
+            //console.log(pickedMesh?.position.x)
+            indexesY.push(startY)
+          }
+          else{
+            break;
+          }
+        }
+
+        startY++
+      }
+};
+
+const burstSphere = (
+  pickedSphere: BABYLON.AbstractMesh,
+  direction: string,
+  scene: BABYLON.Scene,
+  engine: BABYLON.Engine
+) => {
+  let indexesX: Array<number> = [],
+    indexesY: Array<number> = [];
+
+  countAdjacent(pickedSphere, indexesX, indexesY, direction, scene, engine);
+
+  console.log("X", indexesX.length);
+  console.log("Y", indexesY.length)
+
+  if (indexesX.length >= 3 || indexesY.length >= 3) {
+    //rearrage
+    console.log("burst");
+  }
+};
+
+const handleMouseUp = (
+  event: MouseEvent,
+  scene: BABYLON.Scene,
+  engine: BABYLON.Engine
+) => {
   if (pickedSphearMesh) {
     pickedSphearMesh.position.x = intialCord.x;
     pickedSphearMesh.position.y = intialCord.y;
     isMouseDown = false;
 
     const dropedSphearMesh = scene.pick(scene.pointerX, scene.pointerY);
+    console.log(dropedSphearMesh);
 
     if (
       dropedSphearMesh &&
@@ -113,6 +296,7 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
       pickedSphearMesh &&
       pickedSphearMesh.position
     ) {
+      let direction = " ";
       if (intialCord.x + thresholdPoint <= dropedSphearMesh.pickedPoint.x) {
         console.log("right swipe");
 
@@ -127,9 +311,18 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
             ) {
               multipicked[0].pickedMesh.position.x += 1;
               multipicked[1].pickedMesh.position.x -= 1;
+              //console.log(multipicked[0].pickedMesh.position.x)
+              direction = "right"
+              burstSphere(multipicked[0].pickedMesh, direction, scene, engine);
+              direction = "left"
+              burstSphere(multipicked[1].pickedMesh, direction, scene, engine);
             } else {
               multipicked[1].pickedMesh.position.x += 1;
               multipicked[0].pickedMesh.position.x -= 1;
+              direction = "right"
+              burstSphere(multipicked[1].pickedMesh, direction,  scene, engine);
+              direction = "left"
+              burstSphere(multipicked[0].pickedMesh, direction, scene, engine);
             }
           }
         }
@@ -150,13 +343,22 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
             ) {
               multipicked[0].pickedMesh.position.y += 1;
               multipicked[1].pickedMesh.position.y -= 1;
+              //console.log(multipicked[0].pickedMesh.position.y);
+              direction = "top"
+              burstSphere(multipicked[0].pickedMesh,direction, scene, engine);
+              direction = "bottom"
+              burstSphere(multipicked[1].pickedMesh,direction, scene, engine);
             } else {
               multipicked[1].pickedMesh.position.y += 1;
               multipicked[0].pickedMesh.position.y -= 1;
+              //console.log(multipicked[1].pickedMesh.position.y);
+              direction = "top"
+              burstSphere(multipicked[1].pickedMesh, direction, scene, engine);
+              direction = "bottom"
+              burstSphere(multipicked[0].pickedMesh, direction, scene, engine);
             }
           }
         }
-
       } else if (
         intialCord.x - thresholdPoint >=
         dropedSphearMesh.pickedPoint.x
@@ -174,14 +376,20 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
             ) {
               multipicked[0].pickedMesh.position.x -= 1;
               multipicked[1].pickedMesh.position.x += 1;
+              direction = "left"
+              burstSphere(multipicked[0].pickedMesh, direction, scene, engine);
+              direction = "right"
+              burstSphere(multipicked[0].pickedMesh, direction, scene, engine);
             } else {
               multipicked[1].pickedMesh.position.x -= 1;
               multipicked[0].pickedMesh.position.x += 1;
+              direction = "left"
+              burstSphere(multipicked[1].pickedMesh,direction, scene, engine);
+              direction = "right"
+              burstSphere(multipicked[0].pickedMesh,direction, scene, engine);
             }
           }
         }
-       
-
       } else if (
         intialCord.y + thresholdPoint <=
         dropedSphearMesh.pickedPoint.y
@@ -199,13 +407,21 @@ const handleMouseUp = (event: MouseEvent, scene: BABYLON.Scene) => {
             ) {
               multipicked[0].pickedMesh.position.y -= 1;
               multipicked[1].pickedMesh.position.y += 1;
+              direction = "bottom"
+              burstSphere(multipicked[0].pickedMesh, direction, scene, engine);
+              direction = "top"
+              burstSphere(multipicked[1].pickedMesh, direction, scene, engine);
             } else {
               multipicked[1].pickedMesh.position.y -= 1;
               multipicked[0].pickedMesh.position.y += 1;
+              direction = "bottom"
+              burstSphere(multipicked[1].pickedMesh, direction, scene, engine);
+              direction = "top"
+              burstSphere(multipicked[0].pickedMesh, direction, scene, engine);
+
             }
           }
         }
-        
       }
     }
     return;
@@ -263,7 +479,7 @@ function App() {
       });
 
       canvasRef.current.addEventListener("pointerup", (e) =>
-        handleMouseUp(e, scene)
+        handleMouseUp(e, scene, engine)
       );
     }
   }, []);
