@@ -75,7 +75,7 @@ const createScene = (engine: BABYLON.Engine, canvas: HTMLCanvasElement) => {
   }
 
   // Return the created scene
-  return scene;
+  return {scene,camera};
 };
 
 let isMouseDown: boolean = false;
@@ -130,8 +130,8 @@ const getPosition = (
 
 const countAdjacent = (
   pickedSphere: BABYLON.AbstractMesh,
-  indexesX: Array<number>,
-  indexesY: Array<number>,
+  indexesX: Array<BABYLON.AbstractMesh>,
+  indexesY: Array<BABYLON.AbstractMesh>,
   direction: string,
   scene: BABYLON.Scene,
   engine: BABYLON.Engine
@@ -142,13 +142,12 @@ const countAdjacent = (
 
   let startX = pickedSphere.position.x;
   let startY = pickedSphere.position.y;
-  //const ids = [pickedSphere.id];
 
    let tempX = startX,
        tempY = startY
 
-  indexesX.push(startX);
-  indexesY.push(startY);
+  indexesX.push(pickedSphere);
+  indexesY.push(pickedSphere);
 
   // finding adjacent same colored bubble on right side of the switched bubble
 
@@ -156,15 +155,6 @@ const countAdjacent = (
     startX++;
     const position = getPosition(startX, startY, scene, engine);
     const pickedMesh = scene.pick(position.x, position.y).pickedMesh;
-
-    //console.log("position", pickedMesh?.position);
-
-    // if (pickedMesh) {
-    //   if (ids.includes(pickedMesh.id)) {
-    //     break;
-    //   } else {
-    //     ids.push(pickedMesh.id);
-    //   }
 
       
       if(pickedMesh){
@@ -177,7 +167,7 @@ const countAdjacent = (
         ) {
           //console.log(pickedMesh);
           // console.log(pickedMesh?.position.x);
-          indexesX.push(startX);
+          indexesX.push(pickedMesh);
         } else {
           break;
         }
@@ -201,7 +191,7 @@ const countAdjacent = (
 
           if(refMeshMaterialColor.r === checkColor.r && refMeshMaterialColor.g === checkColor.g && refMeshMaterialColor.b === checkColor.b){
             //console.log(pickedMesh?.position.x)
-            indexesX.push(startX)
+            indexesX.push(pickedMesh)
           }
           else{
             break;
@@ -224,7 +214,7 @@ const countAdjacent = (
 
           if(refMeshMaterialColor.r === checkColor.r && refMeshMaterialColor.g === checkColor.g && refMeshMaterialColor.b === checkColor.b){
             //console.log(pickedMesh?.position.x)
-            indexesY.push(startY)
+            indexesY.push(pickedMesh)
           }
           else{
             break;
@@ -246,7 +236,7 @@ const countAdjacent = (
 
           if(refMeshMaterialColor.r === checkColor.r && refMeshMaterialColor.g === checkColor.g && refMeshMaterialColor.b === checkColor.b){
             //console.log(pickedMesh?.position.x)
-            indexesY.push(startY)
+            indexesY.push(pickedMesh)
           }
           else{
             break;
@@ -257,30 +247,93 @@ const countAdjacent = (
       }
 };
 
+const reArrangeSphere = (
+  burstStartPosition: {
+  x: number;
+  y: number;
+},
+   burstLength: number,
+   scene: BABYLON.Scene,
+   engine: BABYLON.Engine,
+   camera: BABYLON.ArcRotateCamera
+    )=>{
+
+    console.log("Length",burstLength)
+    let nextSpherePosition = {x:0,y:0}
+    nextSpherePosition.x = burstStartPosition.x
+    nextSpherePosition.y = burstStartPosition.y
+    nextSpherePosition.y += burstLength
+    
+    
+      while(nextSpherePosition.y<5){
+
+        console.log(nextSpherePosition.y)
+        const position = getPosition(nextSpherePosition.x,nextSpherePosition.y,scene,engine)
+        console.log(position.x,position.y)
+        // const ray = scene.createPickingRay(position.x, position.y, BABYLON.Matrix.Identity(), camera);
+        // const pickedSphere = scene.pickWithRay(ray)?.pickedMesh;
+        const pickedSphere = scene.pick(position.x, position.y).pickedMesh
+        if(pickedSphere){
+         // console.log("newSphere location",pickedSphere.position.y)
+          pickedSphere.position.y -= burstLength
+          //console.log("new location" , pickedSphere.position.y)
+        }
+  
+        burstStartPosition.y +=1
+        nextSpherePosition.y +=1
+      }
+
+}
+
 const burstSphere = (
   pickedSphere: BABYLON.AbstractMesh,
   direction: string,
   scene: BABYLON.Scene,
-  engine: BABYLON.Engine
+  engine: BABYLON.Engine,
+  camera: BABYLON.ArcRotateCamera
 ) => {
-  let indexesX: Array<number> = [],
-    indexesY: Array<number> = [];
+  let indexesX: Array<BABYLON.AbstractMesh> = [],
+    indexesY: Array<BABYLON.AbstractMesh> = [];
 
   countAdjacent(pickedSphere, indexesX, indexesY, direction, scene, engine);
 
   console.log("X", indexesX.length);
   console.log("Y", indexesY.length)
 
-  if (indexesX.length >= 3 || indexesY.length >= 3) {
+  if (indexesX.length >= 3) {
     //rearrage
-    console.log("burst");
+    console.log("burst x");
+  }
+  if(indexesY.length >= 3){
+    console.log("burst y");
+    const burstLength = indexesY.length
+    const burstStartPosition = { x:4.5 , y:4.5 }
+    for(let i=0;i<burstLength;i++){
+      if(indexesY[i].position.y<burstStartPosition.y){
+        burstStartPosition.x = indexesY[i].position.x
+        burstStartPosition.y = indexesY[i].position.y
+      }
+    }
+
+    console.log(burstStartPosition)
+
+    indexesY.forEach((item)=>{
+      item.dispose();
+    })
+
+    setTimeout(()=>{
+      reArrangeSphere(burstStartPosition,burstLength,scene,engine,camera)
+    },250)
+
+    
   }
 };
 
 const handleMouseUp = (
   event: MouseEvent,
   scene: BABYLON.Scene,
-  engine: BABYLON.Engine
+  engine: BABYLON.Engine,
+  camera: BABYLON.ArcRotateCamera
 ) => {
   if (pickedSphearMesh) {
     pickedSphearMesh.position.x = intialCord.x;
@@ -296,7 +349,7 @@ const handleMouseUp = (
       pickedSphearMesh &&
       pickedSphearMesh.position
     ) {
-      let direction = " ";
+      let direction = "";
       if (intialCord.x + thresholdPoint <= dropedSphearMesh.pickedPoint.x) {
         console.log("right swipe");
 
@@ -313,16 +366,16 @@ const handleMouseUp = (
               multipicked[1].pickedMesh.position.x -= 1;
               //console.log(multipicked[0].pickedMesh.position.x)
               direction = "right"
-              burstSphere(multipicked[0].pickedMesh, direction, scene, engine);
+              burstSphere(multipicked[0].pickedMesh, direction, scene, engine, camera);
               direction = "left"
-              burstSphere(multipicked[1].pickedMesh, direction, scene, engine);
+              burstSphere(multipicked[1].pickedMesh, direction, scene, engine, camera);
             } else {
               multipicked[1].pickedMesh.position.x += 1;
               multipicked[0].pickedMesh.position.x -= 1;
               direction = "right"
-              burstSphere(multipicked[1].pickedMesh, direction,  scene, engine);
+              burstSphere(multipicked[1].pickedMesh, direction,  scene, engine,camera);
               direction = "left"
-              burstSphere(multipicked[0].pickedMesh, direction, scene, engine);
+              burstSphere(multipicked[0].pickedMesh, direction, scene, engine,camera);
             }
           }
         }
@@ -345,17 +398,17 @@ const handleMouseUp = (
               multipicked[1].pickedMesh.position.y -= 1;
               //console.log(multipicked[0].pickedMesh.position.y);
               direction = "top"
-              burstSphere(multipicked[0].pickedMesh,direction, scene, engine);
+              burstSphere(multipicked[0].pickedMesh,direction, scene, engine,camera);
               direction = "bottom"
-              burstSphere(multipicked[1].pickedMesh,direction, scene, engine);
+              burstSphere(multipicked[1].pickedMesh,direction, scene, engine,camera);
             } else {
               multipicked[1].pickedMesh.position.y += 1;
               multipicked[0].pickedMesh.position.y -= 1;
               //console.log(multipicked[1].pickedMesh.position.y);
               direction = "top"
-              burstSphere(multipicked[1].pickedMesh, direction, scene, engine);
+              burstSphere(multipicked[1].pickedMesh, direction, scene, engine,camera);
               direction = "bottom"
-              burstSphere(multipicked[0].pickedMesh, direction, scene, engine);
+              burstSphere(multipicked[0].pickedMesh, direction, scene, engine,camera);
             }
           }
         }
@@ -377,16 +430,16 @@ const handleMouseUp = (
               multipicked[0].pickedMesh.position.x -= 1;
               multipicked[1].pickedMesh.position.x += 1;
               direction = "left"
-              burstSphere(multipicked[0].pickedMesh, direction, scene, engine);
+              burstSphere(multipicked[0].pickedMesh, direction, scene, engine,camera);
               direction = "right"
-              burstSphere(multipicked[0].pickedMesh, direction, scene, engine);
+              burstSphere(multipicked[0].pickedMesh, direction, scene, engine,camera);
             } else {
               multipicked[1].pickedMesh.position.x -= 1;
               multipicked[0].pickedMesh.position.x += 1;
               direction = "left"
-              burstSphere(multipicked[1].pickedMesh,direction, scene, engine);
+              burstSphere(multipicked[1].pickedMesh,direction, scene, engine,camera);
               direction = "right"
-              burstSphere(multipicked[0].pickedMesh,direction, scene, engine);
+              burstSphere(multipicked[0].pickedMesh,direction, scene, engine,camera);
             }
           }
         }
@@ -408,16 +461,16 @@ const handleMouseUp = (
               multipicked[0].pickedMesh.position.y -= 1;
               multipicked[1].pickedMesh.position.y += 1;
               direction = "bottom"
-              burstSphere(multipicked[0].pickedMesh, direction, scene, engine);
+              burstSphere(multipicked[0].pickedMesh, direction, scene, engine,camera);
               direction = "top"
-              burstSphere(multipicked[1].pickedMesh, direction, scene, engine);
+              burstSphere(multipicked[1].pickedMesh, direction, scene, engine,camera);
             } else {
               multipicked[1].pickedMesh.position.y -= 1;
               multipicked[0].pickedMesh.position.y += 1;
               direction = "bottom"
-              burstSphere(multipicked[1].pickedMesh, direction, scene, engine);
+              burstSphere(multipicked[1].pickedMesh, direction, scene, engine,camera);
               direction = "top"
-              burstSphere(multipicked[0].pickedMesh, direction, scene, engine);
+              burstSphere(multipicked[0].pickedMesh, direction, scene, engine,camera);
 
             }
           }
@@ -458,7 +511,7 @@ function App() {
         stencil: true,
       });
 
-      const scene = createScene(engine, canvasRef.current);
+      const {scene, camera} = createScene(engine, canvasRef.current);
 
       // run the render loop
       engine.runRenderLoop(() => {
@@ -479,7 +532,7 @@ function App() {
       });
 
       canvasRef.current.addEventListener("pointerup", (e) =>
-        handleMouseUp(e, scene, engine)
+        handleMouseUp(e, scene, engine,camera)
       );
     }
   }, []);
