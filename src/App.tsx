@@ -189,8 +189,49 @@ const reArrangeY = (
     if (pickedMesh) {
       pickedMesh.position.y -= cords.length;
     }
-    maxY += 1;
+    maxY++;
   }
+};
+
+const fillEmptySpace = (scene: BABYLON.Scene, engine: BABYLON.Engine) => {
+  for (let y = 3.5; y >= -4.5; y--) {
+    for (let x = -4.5; x <= 4.5; x++) {
+      // console.log({ x, y });
+      const currentMeshCords = getScreenSpaceCords(x, y, scene, engine);
+      const pickedMesh = scene.pick(
+        currentMeshCords.x,
+        currentMeshCords.y
+      ).pickedMesh;
+
+      if (pickedMesh) {
+        continue;
+      }
+
+      console.log({ pickedMesh1: pickedMesh });
+
+      /* loop for rearranging meshes */
+      for (let currentY = y; currentY <= 4.5; currentY++) {
+        const aboveMeshCords = getScreenSpaceCords(x, currentY, scene, engine);
+
+        const aboveMesh = scene.pick(
+          aboveMeshCords.x,
+          aboveMeshCords.y
+        ).pickedMesh;
+
+        if (aboveMesh) {
+          aboveMesh.position.y -= 1;
+        }
+      }
+    }
+  }
+};
+
+/**
+ * Delay for a number of milliseconds
+ */
+const sleep = (delay: number) => {
+  const start = new Date().getTime();
+  while (new Date().getTime() < start + delay);
 };
 
 let isMouseDown: boolean = false;
@@ -388,49 +429,102 @@ const handleMouseUp = (
       const emptyCordsX: { x: number; y: number }[] = [];
       const emptyCordsY: { x: number; y: number }[] = [];
 
-      if ([...mesh1BottomMatches, ...mesh1TopMatches].length >= 3) {
-        for (const currentMesh of [...mesh1BottomMatches, ...mesh1TopMatches]) {
-          emptyCordsY.push({
-            x: currentMesh.position.x,
-            y: currentMesh.position.y,
-          });
-          currentMesh.dispose();
+      const horizontalMatchesM1 = [...mesh1RightMatches, ...mesh1LeftMatches];
+      const horizontalMatchesM2 = [...mesh2RightMatches, ...mesh2LeftMatches];
+
+      const verticalMatchesM1 = [...mesh1TopMatches, ...mesh1BottomMatches];
+      const verticalMatchesM2 = [...mesh2TopMatches, ...mesh2BottomMatches];
+
+      if (verticalMatchesM1.length >= 3 && horizontalMatchesM1.length >= 3) {
+        const commonMatches = [
+          ...verticalMatchesM1,
+          ...horizontalMatchesM1,
+        ].reduce((acc: BABYLON.AbstractMesh[], mesh: BABYLON.AbstractMesh) => {
+          if (
+            !acc.find(
+              (m) =>
+                m.position.x === mesh.position.x &&
+                m.position.y === mesh.position.y
+            )
+          ) {
+            acc.push(mesh);
+          }
+          return acc;
+        }, []);
+
+        for (const m of commonMatches) m.dispose();
+      } else {
+        if (verticalMatchesM1.length >= 3) {
+          for (const currentMesh of verticalMatchesM1) {
+            emptyCordsY.push({
+              x: currentMesh.position.x,
+              y: currentMesh.position.y,
+            });
+            currentMesh.dispose();
+          }
+        }
+
+        if (horizontalMatchesM1.length >= 3) {
+          for (const currentMesh of horizontalMatchesM1) {
+            emptyCordsX.push({
+              x: currentMesh.position.x,
+              y: currentMesh.position.y,
+            });
+            currentMesh.dispose();
+          }
         }
       }
 
-      if ([...mesh2BottomMatches, ...mesh2TopMatches].length >= 3) {
-        for (const currentMesh of [...mesh2BottomMatches, ...mesh2TopMatches]) {
-          emptyCordsY.push({
-            x: currentMesh.position.x,
-            y: currentMesh.position.y,
-          });
-          currentMesh.dispose();
+      if (verticalMatchesM2.length >= 3 && horizontalMatchesM2.length >= 3) {
+        const commonMatches = [
+          ...verticalMatchesM2,
+          ...horizontalMatchesM2,
+        ].reduce((acc: BABYLON.AbstractMesh[], mesh: BABYLON.AbstractMesh) => {
+          if (
+            !acc.find(
+              (m) =>
+                m.position.x === mesh.position.x &&
+                m.position.y === mesh.position.y
+            )
+          ) {
+            acc.push(mesh);
+          }
+          return acc;
+        }, []);
+
+        for (const m of commonMatches) m.dispose();
+      } else {
+        if (verticalMatchesM2.length >= 3) {
+          for (const currentMesh of verticalMatchesM2) {
+            emptyCordsY.push({
+              x: currentMesh.position.x,
+              y: currentMesh.position.y,
+            });
+            currentMesh.dispose();
+          }
+        }
+
+        if (horizontalMatchesM2.length >= 3) {
+          for (const currentMesh of horizontalMatchesM2) {
+            emptyCordsX.push({
+              x: currentMesh.position.x,
+              y: currentMesh.position.y,
+            });
+            currentMesh.dispose();
+          }
         }
       }
 
-      if ([...mesh1LeftMatches, ...mesh1RightMatches].length >= 3) {
-        for (const currentMesh of [...mesh1LeftMatches, ...mesh1RightMatches]) {
-          emptyCordsX.push({
-            x: currentMesh.position.x,
-            y: currentMesh.position.y,
-          });
-          currentMesh.dispose();
-        }
-      }
+      setTimeout(() => fillEmptySpace(scene, engine), 500);
 
-      if ([...mesh2LeftMatches, ...mesh2RightMatches].length >= 3) {
-        for (const currentMesh of [...mesh2LeftMatches, ...mesh2RightMatches]) {
-          emptyCordsX.push({
-            x: currentMesh.position.x,
-            y: currentMesh.position.y,
-          });
-          currentMesh.dispose();
-        }
-      }
+      // if (emptyCordsX.length) {
+      //   for (const cordx of emptyCordsX)
+      //     setTimeout(() => reArrangeY([cordx], scene, engine), 50);
+      // }
 
-      console.log(emptyCordsY);
-
-      reArrangeY(emptyCordsY, scene, engine);
+      // if (emptyCordsY.length) {
+      //   setTimeout(() => reArrangeY(emptyCordsY, scene, engine), 50);
+      // }
 
       // for (const currentMesh of [
       //   ...mesh2VerticalMatches,
@@ -532,3 +626,11 @@ function App() {
 }
 
 export default App;
+
+/* 
+traverse n match
+dispose 
+rearrange
+add new 
+gito start- while not found match
+*/
