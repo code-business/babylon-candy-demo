@@ -247,6 +247,33 @@ const countAdjacent = (
       }
 };
 
+const addNewSpheres = (
+  positionX: number,
+  burstLength: number,
+  scene: BABYLON.Scene,
+  engine: BABYLON.Engine
+) => {
+  let temp = burstLength;
+  const cellSize = 1;
+  let positionY = 4.5
+
+  while(temp){
+    const sphere = BABYLON.MeshBuilder.CreateSphere(`sphere - {temp}`, { diameter: cellSize * 0.8 }, scene);
+    const sphereMaterial = new BABYLON.StandardMaterial("material", scene);
+
+    sphere.position.x = positionX
+    sphere.position.y = positionY
+
+    sphereMaterial.diffuseColor = new BABYLON.Color3(
+      ...calculatedRgb[Math.floor(Math.random() * calculatedRgb.length)]
+    );
+
+    sphere.material = sphereMaterial;
+    temp--
+    positionY--
+  }
+}
+
 const reArrangeSphere = (
   burstStartPosition: {
   x: number;
@@ -263,7 +290,6 @@ const reArrangeSphere = (
     nextSpherePosition.x = burstStartPosition.x
     nextSpherePosition.y = burstStartPosition.y
     nextSpherePosition.y += burstLength
-    
     
       while(nextSpherePosition.y<5){
 
@@ -283,6 +309,8 @@ const reArrangeSphere = (
         nextSpherePosition.y +=1
       }
 
+      addNewSpheres(nextSpherePosition.x, burstLength, scene, engine)
+
 }
 
 const burstSphere = (
@@ -300,11 +328,65 @@ const burstSphere = (
   console.log("X", indexesX.length);
   console.log("Y", indexesY.length)
 
-  if (indexesX.length >= 3) {
+  if(indexesX.length>=3 && indexesY.length>=3){
+    console.log("pattern match both x and y")
+    //console.log(indexesY.length)
+    for(let i=0;i<indexesY.length;i++){
+      if(pickedSphere.position.x===indexesY[i].position.x && pickedSphere.position.y===indexesY[i].position.y){
+        console.log("correct place")
+        indexesY.splice(i,1)
+        break;
+      }
+    }
+
+    indexesX.forEach((item)=>{
+      //sleep(100)
+      setTimeout(()=>{
+        reArrangeSphere({x:item.position.x,y:item.position.y},1,scene,engine,camera)
+      },1000)
+      
+      item.dispose()
+    })
+
+  
+      const burstLength = indexesY.length
+      const burstStartPosition = { x:4.5 , y:4.5 }
+      for(let i=0;i<burstLength;i++){
+        if(indexesY[i].position.y<burstStartPosition.y){
+          burstStartPosition.x = indexesY[i].position.x
+          burstStartPosition.y = indexesY[i].position.y
+        }
+      }
+  
+      indexesY.forEach((item)=>{
+        item.dispose();
+      })
+  
+      setTimeout(()=>{
+        reArrangeSphere(burstStartPosition,burstLength,scene,engine,camera)
+      },1500)
+  
+      return
+   
+    
+  }
+
+  if (indexesX.length >= 3 && indexesY.length<3) {
     //rearrage
     console.log("burst x");
+
+    //sleep(3000)
+    
+    indexesX.forEach((item)=>{
+      //sleep(100)
+      setTimeout(()=>{
+        reArrangeSphere({x:item.position.x,y:item.position.y},1,scene,engine,camera)
+      },1000)
+      
+      item.dispose()
+    })
   }
-  if(indexesY.length >= 3){
+  if(indexesY.length >= 3 && indexesX.length<3){
     console.log("burst y");
     const burstLength = indexesY.length
     const burstStartPosition = { x:4.5 , y:4.5 }
@@ -323,11 +405,15 @@ const burstSphere = (
 
     setTimeout(()=>{
       reArrangeSphere(burstStartPosition,burstLength,scene,engine,camera)
-    },250)
+    },500)
+
+    
 
     
   }
 };
+
+
 
 const handleMouseUp = (
   event: MouseEvent,
